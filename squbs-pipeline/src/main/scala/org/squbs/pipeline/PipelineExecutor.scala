@@ -48,12 +48,17 @@ class PipelineExecutor(target: Target, processor: Processor) {
       var outboundCtx = reqCtx
       try {
         outboundCtx = preOutbound(outboundCtx)
-        outbound(outboundCtx) onComplete {
-          case Success(ctxAfterOutbound) =>
-            p complete postProcess(ctxAfterOutbound)
-          case Failure(t) =>
-            p complete postProcess(onResponseError(outboundCtx, t))
+        outboundCtx.response match {
+          case r: NormalResponse =>
+            outbound(outboundCtx) onComplete {
+              case Success(ctxAfterOutbound) =>
+                p complete postProcess(ctxAfterOutbound)
+              case Failure(t) =>
+                p complete postProcess(onResponseError(outboundCtx, t))
+            }
+          case _ => p complete postProcess(outboundCtx)
         }
+
       } catch {
         case t: Throwable =>
           p complete postProcess(onResponseError(outboundCtx, t)) // from preOutbound
@@ -106,8 +111,6 @@ class PipelineExecutor(target: Target, processor: Processor) {
   def execute(request: HttpRequest)(implicit context: ActorContext): Future[HttpResponse] = {
     execute(RequestContext(request))
   }
-
-
 
 
   private def finalOutput(ctx: RequestContext): Try[HttpResponse] = {
